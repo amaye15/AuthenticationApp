@@ -20,7 +20,7 @@ EXPOSE 7860
 
 # Explicitly create the /data directory where the SQLite DB will live
 # Running as root by default, so permissions should be okay initially
-RUN mkdir -p /data
+# RUN mkdir -p /data
 
 # Command to run the application using uvicorn
 # It will run the FastAPI app instance created in app/main.py
