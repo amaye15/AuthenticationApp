@@ -13,7 +13,7 @@ from fastapi import FastAPI, Depends # Import FastAPI itself
 from .database import connect_db, disconnect_db, database, metadata, users
 from .api import router as api_router
 from . import schemas, auth, dependencies
-
+from .websocket import manager
 # --- Import SQLAlchemy helpers for DDL generation ---
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.dialects import sqlite # Assuming SQLite, adjust if needed
@@ -126,22 +126,16 @@ async def listen_to_websockets(token: str, notification_state: list):
     logger.info(f"[{ws_listener_id}] Attempting to connect to WebSocket: {ws_url}")
 
     try:
-        # --- CORRECTED CONTEXT MANAGER USAGE ---
-        # Use websockets.connect directly, passing timeout parameters
-        # open_timeout controls connection establishment timeout
         async with websockets.connect(ws_url, open_timeout=15.0) as websocket:
-        # --- END CORRECTION ---
             logger.info(f"[{ws_listener_id}] WebSocket connected successfully to {ws_url}")
 
-            # --- Add a check after connection to see active connections ---
-            # This helps confirm the backend sees the connection before receiving
-            await asyncio.sleep(0.5) # Small delay to allow backend registration
-            logger.info(f"[{ws_listener_id}] Connections according to manager after connect: {manager.active_connections}")
-            # --- End check ---
+            # --- REMOVE or COMMENT OUT this debug line ---
+            # await asyncio.sleep(0.5)
+            # logger.info(f"[{ws_listener_id}] Connections according to manager after connect: {manager.active_connections}")
+            # --- End removal ---
 
             while True:
                 try:
-                    # Add recv timeout (optional, but good practice)
                     message_str = await asyncio.wait_for(websocket.recv(), timeout=300.0) # e.g., 5 min timeout
                     logger.info(f"[{ws_listener_id}] Received raw message: {message_str}")
                     try:
@@ -164,9 +158,7 @@ async def listen_to_websockets(token: str, notification_state: list):
                          logger.error(f"[{ws_listener_id}] Error processing received message: {parse_err}")
 
                 except asyncio.TimeoutError:
-                     # No message received within timeout, keep connection alive (ping might be needed for long silences)
                      logger.debug(f"[{ws_listener_id}] WebSocket recv timed out, continuing loop.")
-                     # Consider sending a ping if needed: await websocket.ping()
                      continue
                 except websockets.ConnectionClosedOK:
                     logger.info(f"[{ws_listener_id}] WebSocket connection closed normally.")
