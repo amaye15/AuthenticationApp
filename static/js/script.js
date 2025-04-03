@@ -1,7 +1,6 @@
-const loginTab = document.getElementById('login-tab');
-const registerTab = document.getElementById('register-tab');
-const loginSection = document.getElementById('login-section');
+// DOM Elements
 const registerSection = document.getElementById('register-section');
+const loginSection = document.getElementById('login-section');
 const welcomeSection = document.getElementById('welcome-section');
 const registerForm = document.getElementById('register-form');
 const loginForm = document.getElementById('login-form');
@@ -16,43 +15,67 @@ const API_URL = '/api'; // Use relative path
 let webSocket = null;
 let authToken = localStorage.getItem('authToken'); // Load token on script start
 
-// --- UI Control & Tab Switching ---
+// --- UI Control ---
 function showSection(sectionId) {
-    loginSection.style.display = 'none';
-    registerSection.style.display = 'none';
-    welcomeSection.style.display = 'none';
+    // Hide all sections first with a fade effect
+    fadeOut(registerSection);
+    fadeOut(loginSection);
+    fadeOut(welcomeSection);
 
-    const sectionToShow = document.getElementById(sectionId);
-    if (sectionToShow) {
-        sectionToShow.style.display = 'block';
-    } else {
-        loginSection.style.display = 'block'; // Default to login
+    // Show the requested section with a fade-in effect
+    setTimeout(() => {
+        registerSection.style.display = 'none';
+        loginSection.style.display = 'none';
+        welcomeSection.style.display = 'none';
+
+        const sectionToShow = document.getElementById(sectionId);
+        if (sectionToShow) {
+            sectionToShow.style.display = 'block';
+            fadeIn(sectionToShow);
+        } else {
+            loginSection.style.display = 'block';
+            fadeIn(loginSection);
+        }
+    }, 300); // Wait for fade out to complete
+}
+
+function fadeOut(element) {
+    if (element && element.style.display !== 'none') {
+        element.style.opacity = '1';
+        element.style.transition = 'opacity 300ms';
+        element.style.opacity = '0';
     }
 }
 
-// Tab switching logic
-loginTab.addEventListener('click', () => {
-    loginTab.classList.add('active');
-    registerTab.classList.remove('active');
-    loginSection.classList.add('active');
-    registerSection.classList.remove('active');
-});
-
-registerTab.addEventListener('click', () => {
-    registerTab.classList.add('active');
-    loginTab.classList.remove('active');
-    registerSection.classList.add('active');
-    loginSection.classList.remove('active');
-});
-
-// Initialize first tab as active
-loginTab.classList.add('active');
-loginSection.classList.add('active');
+function fadeIn(element) {
+    if (element) {
+        element.style.opacity = '0';
+        element.style.transition = 'opacity 300ms';
+        setTimeout(() => {
+            element.style.opacity = '1';
+        }, 50);
+    }
+}
 
 function setStatus(element, message, isSuccess = false) {
+    if (!message) {
+        element.style.display = 'none';
+        return;
+    }
+    
     element.textContent = message;
     element.className = isSuccess ? 'status-message success' : 'status-message';
-    element.style.display = message ? 'block' : 'none';
+    
+    // Show with animation
+    element.style.display = 'block';
+    element.style.opacity = '0';
+    element.style.transform = 'translateY(-10px)';
+    element.style.transition = 'opacity 300ms, transform 300ms';
+    
+    setTimeout(() => {
+        element.style.opacity = '1';
+        element.style.transform = 'translateY(0)';
+    }, 10);
 }
 
 // --- API Calls ---
@@ -119,14 +142,7 @@ function connectWebSocket(token) {
         try {
             const messageData = JSON.parse(event.data);
             if (messageData.type === 'new_user' && messageData.message) {
-                const p = document.createElement('p');
-                p.textContent = messageData.message;
-                // Add message to the top
-                notificationsDiv.insertBefore(p, notificationsDiv.firstChild);
-                // Limit number of messages shown (optional)
-                while (notificationsDiv.children.length > 10) {
-                    notificationsDiv.removeChild(notificationsDiv.lastChild);
-                }
+                addNotification(messageData.message);
             }
         } catch (error) {
             console.error("Error parsing WebSocket message:", error);
@@ -135,23 +151,46 @@ function connectWebSocket(token) {
 
     webSocket.onerror = (event) => {
         console.error("WebSocket error:", event);
-        const p = document.createElement('p');
-        p.textContent = `WebSocket error occurred. Notifications may stop.`;
-        p.style.color = 'red';
-        notificationsDiv.insertBefore(p, notificationsDiv.firstChild);
+        addNotification(`WebSocket error occurred. Notifications may stop.`, 'error');
     };
 
     webSocket.onclose = (event) => {
         console.log("WebSocket connection closed:", event);
         webSocket = null; // Reset WebSocket variable
-        // Optionally try to reconnect or inform user
         if (!event.wasClean) {
-            const p = document.createElement('p');
-            p.textContent = `WebSocket disconnected unexpectedly (Code: ${event.code}). Please refresh or log out/in.`;
-            p.style.color = 'orange';
-            notificationsDiv.insertBefore(p, notificationsDiv.firstChild);
+            addNotification(`WebSocket disconnected unexpectedly (Code: ${event.code}). Please refresh or log out/in.`, 'warning');
         }
     };
+}
+
+function addNotification(message, type = 'info') {
+    const p = document.createElement('p');
+    p.classList.add(type);
+    
+    // Add icon based on notification type
+    let icon = 'bell';
+    if (type === 'error') icon = 'exclamation-circle';
+    if (type === 'warning') icon = 'exclamation-triangle';
+    if (type === 'success') icon = 'check-circle';
+    
+    p.innerHTML = `<i class="fas fa-${icon}"></i> ${message}`;
+    
+    // Add message to the top with animation
+    p.style.opacity = '0';
+    p.style.transform = 'translateY(-10px)';
+    notificationsDiv.insertBefore(p, notificationsDiv.firstChild);
+    
+    // Trigger animation
+    setTimeout(() => {
+        p.style.transition = 'opacity 300ms, transform 300ms';
+        p.style.opacity = '1';
+        p.style.transform = 'translateY(0)';
+    }, 10);
+    
+    // Limit number of messages shown (optional)
+    while (notificationsDiv.children.length > 10) {
+        notificationsDiv.removeChild(notificationsDiv.lastChild);
+    }
 }
 
 function disconnectWebSocket() {
@@ -181,30 +220,31 @@ async function handleLogin(email, password) {
 }
 
 async function handleRegister(email, password) {
-    setStatus(registerStatus, "Registering...");
-    try {
+     setStatus(registerStatus, "Registering...");
+     try {
         const data = await apiRequest('/register', 'POST', { email, password });
         setStatus(registerStatus, `Registration successful for ${data.email}! Please log in.`, true);
         registerForm.reset(); // Clear form
-        // Switch to login tab
-        loginTab.click();
-    } catch (error) {
+        showSection('login-section'); // Switch to login
+     } catch (error) {
         setStatus(registerStatus, `Registration failed: ${error.message}`);
-    }
+     }
 }
 
 async function showWelcomePage() {
     if (!authToken) {
         showSection('login-section');
-        loginTab.click();
         return;
     }
     try {
         // Fetch user details using the token
         const user = await apiRequest('/users/me', 'GET', null, authToken);
-        welcomeMessage.textContent = `Welcome, ${user.email}!`;
+        welcomeMessage.innerHTML = `<i class="fas fa-user-circle"></i> Welcome back, <strong>${user.email}</strong>!`;
         showSection('welcome-section');
         connectWebSocket(authToken); // Connect WS after successful login and user fetch
+        
+        // Add a welcome notification
+        addNotification(`You are now logged in as ${user.email}`, 'success');
     } catch (error) {
         // If fetching user fails (e.g., invalid/expired token), logout
         console.error("Failed to fetch user details:", error);
@@ -218,13 +258,19 @@ function handleLogout() {
     disconnectWebSocket();
     setStatus(loginStatus, ""); // Clear any previous login errors
     showSection('login-section');
-    loginTab.click();
 }
 
 // --- Form Validation ---
-function validateEmail(email) {
-    const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-    return re.test(String(email).toLowerCase());
+function validatePassword(password, confirmPassword) {
+    if (password.length < 8) {
+        return "Password must be at least 8 characters.";
+    }
+    
+    if (password !== confirmPassword) {
+        return "Passwords do not match.";
+    }
+    
+    return null; // No error
 }
 
 // --- Event Listeners ---
@@ -234,73 +280,28 @@ registerForm.addEventListener('submit', (e) => {
     const password = document.getElementById('reg-password').value;
     const confirmPassword = document.getElementById('reg-confirm-password').value;
     
-    const emailError = document.getElementById('register-email-error');
-    const passwordError = document.getElementById('register-password-error');
-    const confirmError = document.getElementById('register-confirm-error');
-    
-    let isValid = true;
-    
-    // Email validation
-    if (!validateEmail(email)) {
-        emailError.style.display = 'block';
-        isValid = false;
-    } else {
-        emailError.style.display = 'none';
+    const passwordError = validatePassword(password, confirmPassword);
+    if (passwordError) {
+        setStatus(registerStatus, passwordError);
+        return;
     }
     
-    // Password validation
-    if (password.length < 8) {
-        passwordError.style.display = 'block';
-        isValid = false;
-    } else {
-        passwordError.style.display = 'none';
-    }
-    
-    // Confirm password
-    if (password !== confirmPassword) {
-        confirmError.style.display = 'block';
-        isValid = false;
-    } else {
-        confirmError.style.display = 'none';
-    }
-    
-    if (isValid) {
-        handleRegister(email, password);
-    }
+    handleRegister(email, password);
 });
 
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-    
-    const emailError = document.getElementById('login-email-error');
-    const passwordError = document.getElementById('login-password-error');
-    
-    let isValid = true;
-    
-    // Email validation
-    if (!validateEmail(email)) {
-        emailError.style.display = 'block';
-        isValid = false;
-    } else {
-        emailError.style.display = 'none';
-    }
-    
-    // Simple password validation
-    if (password.length < 1) {
-        passwordError.style.display = 'block';
-        isValid = false;
-    } else {
-        passwordError.style.display = 'none';
-    }
-    
-    if (isValid) {
-        handleLogin(email, password);
-    }
+    handleLogin(email, password);
 });
 
-logoutButton.addEventListener('click', handleLogout);
+logoutButton.addEventListener('click', () => {
+    // Add a confirmation dialog
+    if (confirm('Are you sure you want to log out?')) {
+        handleLogout();
+    }
+});
 
 // --- Initial Page Load Logic ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -309,6 +310,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showWelcomePage(); // Try to fetch user info and show welcome
     } else {
         console.log("No token found, showing login page.");
-        loginTab.click(); // Activate login tab
+        showSection('login-section'); // Show login if no token
     }
 });

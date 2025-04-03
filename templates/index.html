@@ -4,86 +4,86 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Auth App</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
     <div class="container">
-        <div class="logo">
-            <h1>Auth & Notification App</h1>
-            <p>Welcome! Please login to your account or create a new one.</p>
+        <header class="app-header">
+            <h1 class="app-title">Auth & Notification App</h1>
+            <p class="app-subtitle">Secure login and real-time notifications</p>
+        </header>
+
+        <!-- Registration Section -->
+        <div id="register-section" class="auth-section">
+            <h2 class="section-title">Create Account</h2>
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="reg-email"><i class="fas fa-envelope"></i> Email Address</label>
+                    <input type="email" id="reg-email" name="email" placeholder="you@example.com" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="reg-password"><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" id="reg-password" name="password" placeholder="Minimum 8 characters" required minlength="8">
+                </div>
+                
+                <div class="form-group">
+                    <label for="reg-confirm-password"><i class="fas fa-lock"></i> Confirm Password</label>
+                    <input type="password" id="reg-confirm-password" name="confirm_password" placeholder="Confirm your password" required minlength="8">
+                </div>
+                
+                <button type="submit" class="btn btn-full"><i class="fas fa-user-plus"></i> Register</button>
+            </form>
+            
+            <div id="register-status" class="status-message"></div>
+            
+            <div class="switch-auth">
+                Already have an account? <a href="#" onclick="showSection('login-section')">Sign in</a>
+            </div>
         </div>
 
-        <div class="auth-container">
-            <div class="hero">
-                <h2>Welcome</h2>
-                <p>Please sign in or create a new account to continue.</p>
-            </div>
-
-            <div class="auth-forms">
-                <div class="tabs">
-                    <div class="tab" id="login-tab">Login</div>
-                    <div class="tab" id="register-tab">Register</div>
+        <!-- Login Section -->
+        <div id="login-section" class="auth-section" style="display: none;">
+            <h2 class="section-title">Welcome Back</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-email"><i class="fas fa-envelope"></i> Email Address</label>
+                    <input type="email" id="login-email" name="email" placeholder="you@example.com" required>
                 </div>
-
-                <!-- Login Form -->
-                <div class="auth-form" id="login-section">
-                    <h2>Login to your account</h2>
-                    <form id="login-form">
-                        <div class="form-group">
-                            <label for="login-email">Email Address</label>
-                            <input type="email" id="login-email" name="email" placeholder="youremail@example.com" required>
-                            <div class="error-message" id="login-email-error">Please enter a valid email address</div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="login-password">Password</label>
-                            <input type="password" id="login-password" name="password" placeholder="Enter your password" required>
-                            <div class="error-message" id="login-password-error">Password must be at least 8 characters</div>
-                        </div>
-                        
-                        <button type="submit" class="button">Login Now</button>
-                        <p id="login-status" class="status-message"></p>
-                    </form>
+                
+                <div class="form-group">
+                    <label for="login-password"><i class="fas fa-lock"></i> Password</label>
+                    <input type="password" id="login-password" name="password" placeholder="Your password" required>
                 </div>
-
-                <!-- Registration Form -->
-                <div class="auth-form" id="register-section">
-                    <h2>Create your account</h2>
-                    <form id="register-form">
-                        <div class="form-group">
-                            <label for="reg-email">Email Address</label>
-                            <input type="email" id="reg-email" name="email" placeholder="youremail@example.com" required>
-                            <div class="error-message" id="register-email-error">Please enter a valid email address</div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="reg-password">Password</label>
-                            <input type="password" id="reg-password" name="password" placeholder="Create a password" required minlength="8">
-                            <div class="error-message" id="register-password-error">Password must be at least 8 characters</div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="reg-confirm-password">Confirm Password</label>
-                            <input type="password" id="reg-confirm-password" name="confirm_password" placeholder="Confirm your password" required minlength="8">
-                            <div class="error-message" id="register-confirm-error">Passwords do not match</div>
-                        </div>
-                        
-                        <button type="submit" class="button">Create Account</button>
-                        <p id="register-status" class="status-message"></p>
-                    </form>
-                </div>
+                
+                <button type="submit" class="btn btn-full"><i class="fas fa-sign-in-alt"></i> Login</button>
+            </form>
+            
+            <div id="login-status" class="status-message"></div>
+            
+            <div class="switch-auth">
+                Don't have an account? <a href="#" onclick="showSection('register-section')">Create one now</a>
             </div>
         </div>
 
         <!-- Welcome Section (shown after login) -->
         <div id="welcome-section" style="display: none;">
-            <h2>Welcome!</h2>
-            <p id="welcome-message">Welcome, user!</p>
-            <button id="logout-button" class="button">Logout</button>
-            <hr>
-            <h2>Real-time Notifications</h2>
+            <div class="welcome-header">
+                <h2 class="section-title">Dashboard</h2>
+                <button id="logout-button" class="btn btn-danger"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+            
+            <div id="welcome-message">Welcome back, user!</div>
+            
+            <div class="divider"></div>
+            
+            <div class="notifications-header">
+                <h2 class="section-title">Real-time Notifications</h2>
+            </div>
+            
             <div id="notifications">
-                <p><em>Notifications will appear here...</em></p>
+                <p><em><i class="fas fa-bell"></i> Notifications will appear here...</em></p>
             </div>
         </div>
     </div>
