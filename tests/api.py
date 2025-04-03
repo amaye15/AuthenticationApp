@@ -1,156 +1,3 @@
-# import requests
-# import time
-# from faker import Faker
-
-
-# class AuthClient:
-#     """
-#     Python client for interacting with the Authentication API
-#     """
-    
-#     def __init__(self, base_url="http://localhost:7860/api"):
-#         """
-#         Initialize the client with the API base URL
-        
-#         Args:
-#             base_url (str): The base URL of the API
-#         """
-#         self.base_url = base_url
-#         self.token = None
-    
-#     def register(self, email, password):
-#         """
-#         Register a new user
-        
-#         Args:
-#             email (str): User's email
-#             password (str): User's password (should be at least 8 characters)
-            
-#         Returns:
-#             dict: The user data returned by the API
-            
-#         Raises:
-#             Exception: If registration fails
-#         """
-#         url = f"{self.base_url}/register"
-#         data = {
-#             "email": email,
-#             "password": password
-#         }
-        
-#         response = requests.post(url, json=data)
-        
-#         if response.status_code == 201:
-#             return response.json()
-#         else:
-#             error_detail = response.json().get("detail", "Unknown error")
-#             raise Exception(f"Registration failed: {error_detail} (Status: {response.status_code})")
-    
-#     def login(self, email, password):
-#         """
-#         Login to obtain an authentication token
-        
-#         Args:
-#             email (str): User's email
-#             password (str): User's password
-            
-#         Returns:
-#             dict: The token data returned by the API
-            
-#         Raises:
-#             Exception: If login fails
-#         """
-#         url = f"{self.base_url}/login"
-#         data = {
-#             "email": email,
-#             "password": password
-#         }
-        
-#         response = requests.post(url, json=data)
-        
-#         if response.status_code == 200:
-#             token_data = response.json()
-#             self.token = token_data["access_token"]
-#             return token_data
-#         else:
-#             error_detail = response.json().get("detail", "Unknown error")
-#             raise Exception(f"Login failed: {error_detail} (Status: {response.status_code})")
-    
-#     def get_current_user(self):
-#         """
-#         Get information about the current logged-in user
-        
-#         Returns:
-#             dict: The user data returned by the API
-            
-#         Raises:
-#             Exception: If not authenticated or request fails
-#         """
-#         if not self.token:
-#             raise Exception("Not authenticated. Please login first.")
-        
-#         url = f"{self.base_url}/users/me"
-#         headers = {"Authorization": f"Bearer {self.token}"}
-        
-#         response = requests.get(url, headers=headers)
-        
-#         if response.status_code == 200:
-#             return response.json()
-#         else:
-#             error_detail = response.json().get("detail", "Unknown error")
-#             raise Exception(f"Failed to get user info: {error_detail} (Status: {response.status_code})")
-    
-#     def logout(self):
-#         """Clear the authentication token"""
-#         self.token = None
-
-
-# # Example usage
-# def main():
-#     # Initialize the client
-#     client = AuthClient("https://amaye15-authenticationapp.hf.space/api")
-    
-#     # Initialize Faker
-#     fake = Faker()
-    
-#     for i in range(10):
-#         try:
-#             # Generate random user data
-#             first_name = fake.first_name()
-#             last_name = fake.last_name()
-#             email = fake.email()
-#             password = fake.password(length=12, special_chars=True, digits=True, upper_case=True, lower_case=True)
-            
-#             # Register a new user
-#             print(f"Registering a new user: {first_name} {last_name}...")
-#             try:
-#                 user = client.register(email, password)
-#                 print(f"Registered user: {user}")
-#             except Exception as e:
-#                 print(f"Registration failed: {e}")
-            
-#             # Login
-#             print("\nLogging in...")
-#             token_data = client.login(email, password)
-#             print(f"Login successful, token: {token_data['access_token'][:10]}...")
-            
-#             # Get current user
-#             print("\nGetting current user info...")
-#             user_info = client.get_current_user()
-#             print(f"Current user: {user_info}")
-            
-#             # Logout
-#             print("\nLogging out...")
-#             client.logout()
-#             print("Logged out successfully")
-            
-#         except Exception as e:
-#             print(f"Error: {e}")
-
-
-# if __name__ == "__main__":
-#     main()
-
 import asyncio
 import aiohttp
 import time
@@ -359,9 +206,9 @@ async def load_test(num_users=10, concurrency=5, base_url="https://amaye15-authe
 
 
 # Example usage
-async def main():
+async def remote():
     # Initialize the client
-    base_url = "https://amaye15-authenticationapp.hf.space/api"
+    base_url = "http://localhost:7860/api"
     
     # Run a simple example with a single user
     fake = Faker()
@@ -398,8 +245,8 @@ async def main():
     
     # Run a load test
     print("\nRunning load test...")
-    await load_test(10, 5, base_url)
+    await load_test(100, 10, base_url)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(remote())

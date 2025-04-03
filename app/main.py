@@ -6,10 +6,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import connect_db, disconnect_db, database, users
-from .api import router as api_router
 
-from sqlalchemy.schema import CreateTable
-from sqlalchemy.dialects import sqlite
+from .api import router as api_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -22,19 +20,16 @@ async def lifespan(app: FastAPI):
     logger.info("Application startup: DB Connected. Checking/Creating tables...")
     if database.is_connected:
         try:
-            check_query = "SELECT name FROM sqlite_master WHERE type='table' AND name=:table_name;"
-            table_exists = await database.fetch_one(query=check_query, values={"table_name": users.name})
-            if not table_exists:
-                logger.info(f"Table '{users.name}' not found, creating...")
-                dialect = sqlite.dialect()
-                create_table_stmt = str(CreateTable(users).compile(dialect=dialect))
-                await database.execute(query=create_table_stmt)
-                logger.info(f"Table '{users.name}' created.")
-                table_exists_after = await database.fetch_one(query=check_query, values={"table_name": users.name})
-                if table_exists_after: logger.info(f"Table '{users.name}' verified.")
-                else: logger.error(f"Table '{users.name}' verification FAILED!")
-            else:
-                logger.info(f"Table '{users.name}' already exists.")
+            # Use CREATE TABLE IF NOT EXISTS to avoid race conditions with multiple workers
+            create_table_query = f"""
+            CREATE TABLE IF NOT EXISTS {users.name} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email VARCHAR UNIQUE NOT NULL,
+                hashed_password VARCHAR NOT NULL
+            )
+            """
+            await database.execute(query=create_table_query)
+            logger.info(f"Table '{users.name}' exists or was created.")
         except Exception as db_setup_err:
             logger.exception(f"CRITICAL error during async DB table setup: {db_setup_err}")
     else:
@@ -62,6 +57,11 @@ async def read_root(request: Request):
     except FileNotFoundError:
         logger.error("templates/index.html not found!")
         return HTMLResponse(content="<html><body><h1>Error: Frontend not found</h1></body></html>", status_code=500)
+
+@app.get("/health", status_code=200)
+async def health_check():
+    """Health check endpoint for container health monitoring"""
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn
