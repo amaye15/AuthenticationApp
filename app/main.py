@@ -230,18 +230,18 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             )
 
                 # Function to update the notification display based on the state
-    def update_notification_ui(notif_list_state):
-        # <<< Add Logging >>>
-        # notif_list_state here *is* the Python list from the gr.State object
-        logger.debug(f"UI Update Triggered. State List Length: {len(notif_list_state)}. Content: {notif_list_state[:5]}")
-        # Join the list items into a string for display
-        return "\n".join(notif_list_state)
+            def update_notification_ui(notif_list_state):
+                # <<< Add Logging >>>
+                # notif_list_state here *is* the Python list from the gr.State object
+                logger.debug(f"UI Update Triggered. State List Length: {len(notif_list_state)}. Content: {notif_list_state[:5]}")
+                # Join the list items into a string for display
+                return "\n".join(notif_list_state)
 
-    notification_display.change( # Use .change with every= setup on the component
-        fn=update_notification_ui,
-        inputs=[notification_list], # Read the state
-        outputs=[notification_display] # Update the component
-    )
+            notification_display.change( # Use .change with every= setup on the component
+                fn=update_notification_ui,
+                inputs=[notification_list], # Read the state
+                outputs=[notification_display] # Update the component
+            )
 
     # --- Event Handlers ---
 
