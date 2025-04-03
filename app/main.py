@@ -114,66 +114,69 @@ async def make_api_request(method: str, endpoint: str, **kwargs):
 
 async def listen_to_websockets(token: str, notification_state: list):
     """Connects to WS and updates state list when a message arrives."""
+    # <<< Add Logging >>>
+    ws_listener_id = f"WSListener-{os.getpid()}-{asyncio.current_task().get_name()}"
+    logger.info(f"[{ws_listener_id}] Starting WebSocket listener task.")
+
     if not token:
-        logger.warning("WebSocket listener: No token provided.")
-        return notification_state # Return current state if no token
+        logger.warning(f"[{ws_listener_id}] No token provided. Listener task exiting.")
+        return notification_state
 
     ws_url_base = API_BASE_URL.replace("http", "ws")
     ws_url = f"{ws_url_base}/ws/{token}"
-    logger.info(f"Attempting to connect to WebSocket: {ws_url}")
+    logger.info(f"[{ws_listener_id}] Attempting to connect to WebSocket: {ws_url}")
 
     try:
-        # Add timeout to websocket connection attempt
-        async with asyncio.wait_for(websockets.connect(ws_url), timeout=10.0) as websocket:
-            logger.info(f"WebSocket connected successfully to {ws_url}")
+        async with asyncio.wait_for(websockets.connect(ws_url), timeout=15.0) as websocket: # Increased timeout slightly
+            logger.info(f"[{ws_listener_id}] WebSocket connected successfully to {ws_url}")
             while True:
                 try:
                     message_str = await websocket.recv()
-                    logger.info(f"Received raw message: {message_str}")
-                    message_data = json.loads(message_str)
-                    logger.info(f"Parsed message data: {message_data}")
+                    # <<< Add Logging >>>
+                    logger.info(f"[{ws_listener_id}] Received raw message: {message_str}")
+                    try:
+                         message_data = json.loads(message_str)
+                         logger.info(f"[{ws_listener_id}] Parsed message data: {message_data}")
 
-                    # Ensure it's the expected notification format
-                    if message_data.get("type") == "new_user":
-                         notification = schemas.Notification(**message_data)
-                         # Prepend to show newest first
-                         notification_state.insert(0, notification.message)
-                         logger.info(f"Notification added: {notification.message}")
-                         # Limit state history (optional)
-                         if len(notification_state) > 10:
-                             notification_state.pop()
-                         # IMPORTANT: Need to trigger Gradio update. This function itself
-                         # cannot directly update UI. It modifies the state, and we need
-                         # a gr.update() returned by a Gradio event handler that *reads*
-                         # this state. We use a polling mechanism or a hidden button trick.
-                         # Let's use polling via `every=` parameter in Gradio.
-                         # This function's primary job is just modifying the list.
-                         # We return the modified list, but Gradio needs an event.
-                         # ---> See the use of `gr.Textbox.change` and `every` below.
+                         if message_data.get("type") == "new_user":
+                              notification = schemas.Notification(**message_data)
+                              # <<< Add Logging >>>
+                              logger.info(f"[{ws_listener_id}] Processing 'new_user' notification: {notification.message}")
+                              # Modify the list in place
+                              notification_state.insert(0, notification.message)
+                              logger.info(f"[{ws_listener_id}] State list updated. New length: {len(notification_state)}. Content: {notification_state[:5]}") # Log first few items
+                              # Limit state history
+                              if len(notification_state) > 10:
+                                  notification_state.pop()
+                         else:
+                              logger.warning(f"[{ws_listener_id}] Received message of unknown type: {message_data.get('type')}")
+
+                    except json.JSONDecodeError:
+                         logger.error(f"[{ws_listener_id}] Failed to decode JSON from WebSocket message: {message_str}")
+                    except Exception as parse_err:
+                         logger.error(f"[{ws_listener_id}] Error processing received message: {parse_err}")
+
 
                 except websockets.ConnectionClosedOK:
-                    logger.info("WebSocket connection closed normally.")
+                    logger.info(f"[{ws_listener_id}] WebSocket connection closed normally.")
                     break
                 except websockets.ConnectionClosedError as e:
-                    logger.error(f"WebSocket connection closed with error: {e}")
+                    logger.error(f"[{ws_listener_id}] WebSocket connection closed with error: {e}")
                     break
-                except json.JSONDecodeError:
-                     logger.error(f"Failed to decode JSON from WebSocket message: {message_str}")
                 except Exception as e:
-                     logger.error(f"Error in WebSocket listener loop: {e}")
-                     # Avoid breaking the loop on transient errors maybe? Add delay?
-                     await asyncio.sleep(1) # Short delay before retrying receive
-    except asyncio.TimeoutError:
-        logger.error(f"WebSocket connection timed out: {ws_url}")
-    except websockets.exceptions.InvalidURI:
-         logger.error(f"Invalid WebSocket URI: {ws_url}")
-    except websockets.exceptions.WebSocketException as e:
-        logger.error(f"WebSocket connection failed: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error connecting/listening to WebSocket: {e}")
+                     logger.error(f"[{ws_listener_id}] Error in WebSocket listener receive loop: {e}")
+                     await asyncio.sleep(1) # Avoid tight loop on errors
 
-    # Return the state as it is if connection failed or ended
-    # The calling Gradio function will handle this return value.
+    except asyncio.TimeoutError:
+        logger.error(f"[{ws_listener_id}] WebSocket connection timed out: {ws_url}")
+    except websockets.exceptions.InvalidURI:
+         logger.error(f"[{ws_listener_id}] Invalid WebSocket URI: {ws_url}")
+    except websockets.exceptions.WebSocketException as e:
+        logger.error(f"[{ws_listener_id}] WebSocket connection failed: {e}")
+    except Exception as e:
+        logger.error(f"[{ws_listener_id}] Unexpected error in WebSocket listener task: {e}")
+
+    logger.info(f"[{ws_listener_id}] Listener task finished.")
     return notification_state
 
 
@@ -225,6 +228,18 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                 # This function will read the `notification_list` state
                 every=1
             )
+                def update_notification_ui(notif_list_state):
+                    # <<< Add Logging >>>
+                    # notif_list_state here *is* the Python list from the gr.State object
+                    logger.debug(f"UI Update Triggered. State List Length: {len(notif_list_state)}. Content: {notif_list_state[:5]}")
+                    # Join the list items into a string for display
+                    return "\n".join(notif_list_state)
+
+                notification_display.change( # Use .change with every= setup on the component
+                    fn=update_notification_ui,
+                    inputs=[notification_list], # Read the state
+                    outputs=[notification_display] # Update the component
+                )
 
     # --- Event Handlers ---
 
