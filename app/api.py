@@ -1,4 +1,3 @@
-# app/api.py
 from fastapi import APIRouter, HTTPException, status, Depends, WebSocket, WebSocketDisconnect
 import logging
 
@@ -9,8 +8,8 @@ from .dependencies import get_required_current_user
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# --- FIX THE DECORATORS HERE ---
-@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=models.User) # <-- FIX HERE
+
+@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=models.User)
 async def register_user(user_in: schemas.UserCreate):
     existing_user = await crud.get_user_by_email(user_in.email)
     if existing_user:
@@ -23,14 +22,13 @@ async def register_user(user_in: schemas.UserCreate):
     if not created_user: raise HTTPException(status_code=500, detail="Failed to retrieve created user")
     return models.User(id=created_user.id, email=created_user.email)
 
-@router.post("/login", response_model=schemas.Token) # <-- FIX HERE
+@router.post("/login", response_model=schemas.Token)
 async def login_for_access_token(form_data: schemas.UserLogin):
     user = await crud.get_user_by_email(form_data.email)
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password", headers={"WWW-Authenticate": "Bearer"})
     access_token = auth.create_session_token(user_id=user.id)
     return {"access_token": access_token, "token_type": "bearer"}
-# --- END FIXES ---
 
 @router.get("/users/me", response_model=models.User)
 async def read_users_me(current_user: models.User = Depends(get_required_current_user)):

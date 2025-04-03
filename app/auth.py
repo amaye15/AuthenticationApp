@@ -1,5 +1,4 @@
 import os
-from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadSignature
 from dotenv import load_dotenv
@@ -8,8 +7,8 @@ from . import crud, models
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("SECRET_KEY", "super-secret") # Fallback, but .env should be used
-# Use URLSafeTimedSerializer for session tokens that expire
+SECRET_KEY = os.getenv("SECRET_KEY", "super-secret")
+
 serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -20,8 +19,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
-# Session Token generation (using itsdangerous for simplicity)
-# Stores user_id securely signed with a timestamp
 def create_session_token(user_id: int) -> str:
     return serializer.dumps(user_id)
 
@@ -30,8 +27,7 @@ async def get_user_id_from_token(token: str) -> Optional[int]:
     if not token:
         return None
     try:
-        # Set max_age to something reasonable, e.g., 1 day
-        user_id = serializer.loads(token, max_age=86400) # 24 hours * 60 min * 60 sec
+        user_id = serializer.loads(token, max_age=86400)
         return int(user_id)
     except (SignatureExpired, BadSignature, ValueError):
         return None
@@ -43,6 +39,5 @@ async def get_current_user_from_token(token: str) -> Optional[models.User]:
         return None
     user = await crud.get_user_by_id(user_id)
     if user:
-        # Return the public User model, not UserInDB
         return models.User(id=user.id, email=user.email)
     return None

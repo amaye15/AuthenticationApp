@@ -1,15 +1,12 @@
 from fastapi import WebSocket
 from typing import List, Dict, Optional
-import json
 import logging
 
 logger = logging.getLogger(__name__)
 
 class ConnectionManager:
     def __init__(self):
-        # Store connections with user ID if available for targeted messaging later
         self.active_connections: Dict[Optional[int], List[WebSocket]] = {}
-        # Map websocket to user_id for easier removal
         self.websocket_to_user: Dict[WebSocket, Optional[int]] = {}
 
     async def connect(self, websocket: WebSocket, user_id: Optional[int] = None):
@@ -43,14 +40,7 @@ class ConnectionManager:
         logger.info(f"Broadcasting to {len(all_websockets)} connections (excluding sender if ID matches). Sender ID: {sender_id}")
 
         for websocket in all_websockets:
-             # Send to all *other* users (or all if sender_id is None)
             ws_user_id = self.websocket_to_user.get(websocket)
-            # Requirement: "all *other* connected users should see"
-            # Send if the websocket isn't associated with the sender_id
-            # (Note: If a user has multiple tabs/connections open, they might still receive it
-            # if the sender_id check only excludes one specific connection. This simple broadcast
-            # targets users based on their ID at connection time).
-            # Let's refine: Send if the user_id associated with the WS is not the sender_id
             if ws_user_id != sender_id:
                 try:
                     await websocket.send_text(message)
