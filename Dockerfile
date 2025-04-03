@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy the rest of the application code into the container
 COPY ./app /code/app
-COPY ./.env /code/.env # Copy .env file - for Hugging Face, use Secrets instead
+# COPY ./.env /code/.env # Copy .env file - for Hugging Face, use Secrets instead
 
 # Make port 7860 available to the world outside this container (Gradio default)
 EXPOSE 7860
