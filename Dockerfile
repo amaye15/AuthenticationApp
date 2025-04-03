@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.12-slim # Or 3.10/3.11 if preferred
+FROM python:3.12-slim
 
 WORKDIR /code
 
