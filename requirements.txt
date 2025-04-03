@@ -1,0 +1,11 @@
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+gradio==4.29.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.0.1
+databases[sqlite]==0.9.0 # Async DB access
+sqlalchemy==2.0.29       # Core needed by `databases` or for potential future use
+pydantic==2.7.1
+python-multipart==0.0.9 # For form data in FastAPI
+itsdangerous==2.1.2     # Simple secure signing for session IDs
+websockets>=11.0.3,<13.0 # Ensure compatibility
