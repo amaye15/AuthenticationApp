@@ -84,29 +84,54 @@
 #         logger.exception(f"Error closing async database connection: {e}")
 
 
+
 # app/database.py
 import os
-# --- Keep only Sync SQLAlchemy ---
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, text, exc as sqlalchemy_exc
+from databases import Database
 from dotenv import load_dotenv
+# --- Keep only these SQLAlchemy imports ---
+# MetaData and Table are needed for defining the table structure
+# which is used by crud.py and for DDL generation in main.py
+from sqlalchemy import MetaData, Table, Column, Integer, String
 import logging
+from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 
+# Load environment variables from .env file (if it exists)
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-# Use /tmp for ephemeral storage in HF Space
+# --- Database URL Configuration ---
+# Use /tmp directory for the SQLite file as it's generally writable in containers
 DEFAULT_DB_PATH = "/tmp/app.db"
-# Construct sync URL directly
-DATABASE_URL = os.getenv("DATABASE_URL_SYNC", f"sqlite:///{DEFAULT_DB_PATH}")
+# Get the URL from environment or use the default /tmp path
+raw_db_url = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{DEFAULT_DB_PATH}")
 
-logger.info(f"Using DB URL for sync operations: {DATABASE_URL}")
+final_database_url = raw_db_url
+# Ensure 'check_same_thread=False' is in the URL query string for SQLite async connection
+if raw_db_url.startswith("sqlite+aiosqlite"):
+    parsed_url = urlparse(raw_db_url)
+    query_params = parse_qs(parsed_url.query)
+    if 'check_same_thread' not in query_params:
+        query_params['check_same_thread'] = ['False'] # Value needs to be a list for urlencode
+        new_query = urlencode(query_params, doseq=True)
+        # Rebuild the URL using _replace method of the named tuple
+        final_database_url = urlunparse(parsed_url._replace(query=new_query))
+    logger.info(f"Using final async DB URL: {final_database_url}")
+else:
+    logger.info(f"Using non-SQLite async DB URL: {final_database_url}")
 
-# SQLite specific args for sync engine
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False) # echo=True for debugging SQL
 
+# --- Async Database Instance ---
+# This 'database' object will be used by crud.py and main.py lifespan
+database = Database(final_database_url)
+
+
+# --- Metadata and Table Definition ---
+# These definitions are needed by:
+# 1. crud.py to construct queries (e.g., users.select())
+# 2. main.py (lifespan) to generate the CREATE TABLE statement
 metadata = MetaData()
-users_table = Table( # Renamed slightly to avoid confusion with Pydantic model name
+users = Table(
     "users",
     metadata,
     Column("id", Integer, primary_key=True),
@@ -114,45 +139,47 @@ users_table = Table( # Renamed slightly to avoid confusion with Pydantic model n
     Column("hashed_password", String, nullable=False),
 )
 
-def ensure_db_and_table_exist():
-    """Synchronously ensures DB file directory and users table exist."""
-    logger.info("Ensuring DB and table exist...")
+
+# --- Async connect/disconnect functions ---
+# Called by the FastAPI lifespan event handler in main.py
+async def connect_db():
+    """Connects to the database defined by 'final_database_url'."""
     try:
-        # Ensure directory exists
-        db_file_path = DATABASE_URL.split("sqlite:///")[-1]
-        db_dir = os.path.dirname(db_file_path)
-        if db_dir:
-            if not os.path.exists(db_dir):
-                logger.info(f"Creating DB directory: {db_dir}")
-                os.makedirs(db_dir, exist_ok=True)
-            if not os.access(db_dir, os.W_OK):
-                 logger.error(f"CRITICAL: Directory {db_dir} not writable!")
-                 return # Cannot proceed
+        # Optional: Check/create directory if using file-based DB like SQLite
+        if final_database_url.startswith("sqlite"):
+            db_file_path = final_database_url.split("sqlite:///")[-1].split("?")[0]
+            db_dir = os.path.dirname(db_file_path)
+            if db_dir:
+                 if not os.path.exists(db_dir):
+                     logger.info(f"DB directory '{db_dir}' missing, creating.")
+                     try:
+                         os.makedirs(db_dir, exist_ok=True)
+                     except Exception as mkdir_err:
+                         logger.error(f"Failed to create DB directory '{db_dir}': {mkdir_err}")
+                 # Check writability (best effort)
+                 if os.path.exists(db_dir) and not os.access(db_dir, os.W_OK):
+                      logger.error(f"CRITICAL: DB directory '{db_dir}' exists but is not writable!")
+                 elif not os.path.exists(db_dir):
+                      logger.error(f"CRITICAL: DB directory '{db_dir}' does not exist and could not be created!")
 
-        # Check/Create table using the engine
-        with engine.connect() as connection:
-            try:
-                connection.execute(text("SELECT 1 FROM users LIMIT 1"))
-                logger.info("Users table already exists.")
-            except sqlalchemy_exc.OperationalError as e:
-                if "no such table" in str(e).lower():
-                    logger.warning("Users table not found, creating...")
-                    metadata.create_all(bind=connection) # Use connection
-                    connection.commit()
-                    logger.info("Users table created and committed.")
-                    # Verify
-                    try:
-                         connection.execute(text("SELECT 1 FROM users LIMIT 1"))
-                         logger.info("Users table verified post-creation.")
-                    except Exception as verify_err:
-                         logger.error(f"Verification failed after creating table: {verify_err}")
-                else:
-                    logger.error(f"DB OperationalError checking table (not 'no such table'): {e}")
-                    raise # Re-raise unexpected errors
-            except Exception as check_err:
-                 logger.error(f"Unexpected error checking table: {check_err}")
-                 raise # Re-raise unexpected errors
-
+        # Connect using the 'databases' library instance
+        if not database.is_connected:
+            await database.connect()
+            logger.info(f"Database connection established: {final_database_url}")
+        else:
+            logger.info("Database connection already established.")
+        # Note: Table creation happens in main.py lifespan after connection
     except Exception as e:
-        logger.exception(f"CRITICAL error during DB setup: {e}")
-        # Potentially raise to halt app start?
+        logger.exception(f"FATAL: Failed to establish async database connection: {e}")
+        raise # Stop application startup if DB connection fails
+
+async def disconnect_db():
+    """Disconnects from the database if connected."""
+    try:
+        if database.is_connected:
+             await database.disconnect()
+             logger.info("Database connection closed.")
+        else:
+             logger.info("Database already disconnected.")
+    except Exception as e:
+        logger.exception(f"Error closing database connection: {e}")
