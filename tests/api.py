@@ -294,9 +294,9 @@ async def main():
     
     # Load test command
     load_parser = subparsers.add_parser('load', help='Run a load test with multiple users')
-    load_parser.add_argument('--users', type=int, default=10, 
+    load_parser.add_argument('--users', type=int, default=100, 
                              help='Number of users to simulate (default: 10)')
-    load_parser.add_argument('--concurrency', type=int, default=5, 
+    load_parser.add_argument('--concurrency', type=int, default=10, 
                              help='Maximum number of concurrent users (default: 5)')
     
     # Custom user test command
