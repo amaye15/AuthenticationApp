@@ -18,8 +18,9 @@ COPY ./app /code/app
 # Make port 7860 available to the world outside this container (Gradio default)
 EXPOSE 7860
 
-# Ensure the database directory exists if using SQLite relative paths implicitly
-# RUN mkdir -p /code/app
+# Explicitly create the /data directory where the SQLite DB will live
+# Running as root by default, so permissions should be okay initially
+RUN mkdir -p /data
 
 # Command to run the application using uvicorn
 # It will run the FastAPI app instance created in app/main.py
