@@ -1,6 +1,7 @@
 import asyncio
 import aiohttp
 import time
+import argparse
 from faker import Faker
 
 
@@ -126,8 +127,7 @@ class AuthClient:
         self.token = None
 
 
-# Load testing function
-async def load_test(num_users=10, concurrency=5, base_url="https://amaye15-authenticationapp.hf.space/api"):
+async def load_test(num_users=10, concurrency=5, base_url="http://localhost:7860/api"):
     """
     Run a load test with multiple simulated users
     
@@ -205,12 +205,8 @@ async def load_test(num_users=10, concurrency=5, base_url="https://amaye15-authe
         print(f"Requests per second: {success_count/duration:.2f}")
 
 
-# Example usage
-async def remote():
-    # Initialize the client
-    base_url = "http://localhost:7860/api"
-    
-    # Run a simple example with a single user
+async def single_user_test(base_url):
+    """Run a test with a single user"""
     fake = Faker()
     async with AuthClient(base_url) as client:
         # Generate random user data
@@ -242,11 +238,94 @@ async def remote():
             
         except Exception as e:
             print(f"Error: {e}")
+
+
+async def custom_user_test(email, password, base_url):
+    """Test with specific user credentials"""
+    async with AuthClient(base_url) as client:
+        try:
+            # Try to login first (for existing users)
+            print(f"\nAttempting to login with email: {email}...")
+            try:
+                token_data = await client.login(email, password)
+                print(f"Login successful, token: {token_data['access_token'][:10]}...")
+            except Exception as e:
+                print(f"Login failed: {e}")
+                
+                # If login fails, try to register
+                print(f"\nAttempting to register with email: {email}...")
+                user = await client.register(email, password)
+                print(f"Registered user: {user}")
+                
+                # Now try login again after registration
+                print("\nLogging in after registration...")
+                token_data = await client.login(email, password)
+                print(f"Login successful, token: {token_data['access_token'][:10]}...")
+            
+            # Get current user
+            print("\nGetting current user info...")
+            user_info = await client.get_current_user()
+            print(f"Current user: {user_info}")
+            
+            # Logout
+            print("\nLogging out...")
+            client.logout()
+            print("Logged out successfully")
+            
+        except Exception as e:
+            print(f"Error: {e}")
+
+
+async def main():
+    # Define command-line arguments
+    parser = argparse.ArgumentParser(description='Authentication API Client CLI')
     
-    # Run a load test
-    print("\nRunning load test...")
-    await load_test(100, 10, base_url)
+    # Main command options
+    parser.add_argument('--url', type=str, default="http://localhost:7860/api",
+                        help='Base URL for the API (default: http://localhost:7860/api)')
+    parser.add_argument('--remote', action='store_true',
+                        help='Use the remote API endpoint')
+    
+    # Create subparsers for different commands
+    subparsers = parser.add_subparsers(dest='command', help='Command to execute')
+    
+    # Single user test command
+    single_parser = subparsers.add_parser('single', help='Run a test with a single random user')
+    
+    # Load test command
+    load_parser = subparsers.add_parser('load', help='Run a load test with multiple users')
+    load_parser.add_argument('--users', type=int, default=10, 
+                             help='Number of users to simulate (default: 10)')
+    load_parser.add_argument('--concurrency', type=int, default=5, 
+                             help='Maximum number of concurrent users (default: 5)')
+    
+    # Custom user test command
+    custom_parser = subparsers.add_parser('custom', help='Test with specific user credentials')
+    custom_parser.add_argument('--email', type=str, required=True, help='User email')
+    custom_parser.add_argument('--password', type=str, required=True, help='User password')
+    
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # Set remote URL if specified
+    if args.remote:
+        base_url = "https://amaye15-authenticationapp.hf.space/api"
+        print(f"Using remote API at: {base_url}")
+    else:
+        base_url = args.url
+        print(f"Using API at: {base_url}")
+    
+    # Execute the appropriate command
+    if args.command == 'single':
+        await single_user_test(base_url)
+    elif args.command == 'load':
+        await load_test(args.users, args.concurrency, base_url)
+    elif args.command == 'custom':
+        await custom_user_test(args.email, args.password, base_url)
+    else:
+        # If no command specified, show help
+        parser.print_help()
 
 
 if __name__ == "__main__":
-    asyncio.run(remote())
+    asyncio.run(main())
