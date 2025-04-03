@@ -14,6 +14,14 @@ const API_URL = '/api'; // Use relative path
 
 let webSocket = null;
 let authToken = localStorage.getItem('authToken'); // Load token on script start
+let currentTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+
+// Setup theme change listener
+const themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+themeMediaQuery.addEventListener('change', e => {
+    currentTheme = e.matches ? 'dark' : 'light';
+    updateThemeNotification();
+});
 
 // --- UI Control ---
 function showSection(sectionId) {
@@ -231,6 +239,13 @@ async function handleRegister(email, password) {
      }
 }
 
+// Function to show current theme notification
+function updateThemeNotification() {
+    if (welcomeSection.style.display !== 'none') {
+        addNotification(`Theme switched to ${currentTheme} mode based on your system settings`, 'info');
+    }
+}
+
 async function showWelcomePage() {
     if (!authToken) {
         showSection('login-section');
@@ -245,6 +260,11 @@ async function showWelcomePage() {
         
         // Add a welcome notification
         addNotification(`You are now logged in as ${user.email}`, 'success');
+        
+        // Add theme notification
+        setTimeout(() => {
+            addNotification(`Currently using ${currentTheme} theme based on your system settings`, 'info');
+        }, 1000);
     } catch (error) {
         // If fetching user fails (e.g., invalid/expired token), logout
         console.error("Failed to fetch user details:", error);

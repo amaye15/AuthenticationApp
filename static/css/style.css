@@ -1,5 +1,6 @@
-/* Modern UI styling for Auth App */
+/* Modern UI styling for Auth App with automatic light/dark theme */
 :root {
+    /* Base colors (light theme) */
     --primary: #4361ee;
     --primary-light: #4cc9f0;
     --primary-dark: #3a0ca3;
@@ -16,6 +17,24 @@
     --transition: all 0.3s ease;
   }
   
+  /* Dark theme colors - will be applied when system prefers dark mode */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --primary: #5d7aff;
+      --primary-light: #70d6ff;
+      --primary-dark: #9b5de5;
+      --success: #56f2a3;
+      --danger: #ff6b6b;
+      --text: #e5e7eb;
+      --text-light: #9ca3af;
+      --bg-light: #111827;
+      --bg-dark: #0f172a;
+      --card-bg: #1f2937;
+      --card-border: #374151;
+      --shadow: rgba(0, 0, 0, 0.3);
+    }
+  }
+  
   * {
     box-sizing: border-box;
     margin: 0;
@@ -29,6 +48,7 @@
     background: linear-gradient(135deg, var(--bg-light), var(--bg-dark));
     min-height: 100vh;
     padding: 2rem;
+    transition: background-color 0.5s ease, color 0.5s ease;
   }
   
   .container {
@@ -248,9 +268,9 @@
     padding: 0.75rem;
     margin-bottom: 0.75rem;
     border-radius: var(--radius);
-    background-color: white;
+    background-color: var(--card-bg);
     border-left: 3px solid var(--primary-light);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 4px var(--shadow);
     animation: fadeIn 0.3s ease;
   }
   
@@ -278,6 +298,11 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+  
+  /* Theme transition */
+  * {
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
   
   /* Responsive styles */
