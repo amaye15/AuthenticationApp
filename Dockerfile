@@ -11,18 +11,14 @@ COPY ./requirements.txt /code/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code into the container
+# Copy the application code (Backend API and Streamlit app)
 COPY ./app /code/app
-# COPY ./.env /code/.env # Copy .env file - for Hugging Face, use Secrets instead
+COPY ./streamlit_app.py /code/streamlit_app.py # Add streamlit app file
 
-# Make port 7860 available to the world outside this container (Gradio default)
+# Make port 7860 available (Streamlit default is 8501, but HF uses specified port)
 EXPOSE 7860
 
-# Explicitly create the /data directory where the SQLite DB will live
-# Running as root by default, so permissions should be okay initially
-# RUN mkdir -p /data
-
-# Command to run the application using uvicorn
-# It will run the FastAPI app instance created in app/main.py
-# Host 0.0.0.0 is important to accept connections from outside the container
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# Command to run the Streamlit application
+# Use --server.port to match EXPOSE and HF config
+# Use --server.address to bind correctly inside container
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.address=0.0.0.0"]
