@@ -1,5 +1,7 @@
-const registerSection = document.getElementById('register-section');
+const loginTab = document.getElementById('login-tab');
+const registerTab = document.getElementById('register-tab');
 const loginSection = document.getElementById('login-section');
+const registerSection = document.getElementById('register-section');
 const welcomeSection = document.getElementById('welcome-section');
 const registerForm = document.getElementById('register-form');
 const loginForm = document.getElementById('login-form');
@@ -14,10 +16,10 @@ const API_URL = '/api'; // Use relative path
 let webSocket = null;
 let authToken = localStorage.getItem('authToken'); // Load token on script start
 
-// --- UI Control ---
+// --- UI Control & Tab Switching ---
 function showSection(sectionId) {
-    registerSection.style.display = 'none';
     loginSection.style.display = 'none';
+    registerSection.style.display = 'none';
     welcomeSection.style.display = 'none';
 
     const sectionToShow = document.getElementById(sectionId);
@@ -27,6 +29,25 @@ function showSection(sectionId) {
         loginSection.style.display = 'block'; // Default to login
     }
 }
+
+// Tab switching logic
+loginTab.addEventListener('click', () => {
+    loginTab.classList.add('active');
+    registerTab.classList.remove('active');
+    loginSection.classList.add('active');
+    registerSection.classList.remove('active');
+});
+
+registerTab.addEventListener('click', () => {
+    registerTab.classList.add('active');
+    loginTab.classList.remove('active');
+    registerSection.classList.add('active');
+    loginSection.classList.remove('active');
+});
+
+// Initialize first tab as active
+loginTab.classList.add('active');
+loginSection.classList.add('active');
 
 function setStatus(element, message, isSuccess = false) {
     element.textContent = message;
@@ -67,7 +88,6 @@ async function apiRequest(endpoint, method = 'GET', body = null, token = null) {
     }
 }
 
-
 // --- WebSocket Handling ---
 function connectWebSocket(token) {
     if (!token) {
@@ -83,7 +103,6 @@ function connectWebSocket(token) {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}${API_URL}/ws/${token}`;
     console.log("Attempting to connect WebSocket:", wsUrl);
-
 
     webSocket = new WebSocket(wsUrl);
 
@@ -104,11 +123,10 @@ function connectWebSocket(token) {
                 p.textContent = messageData.message;
                 // Add message to the top
                 notificationsDiv.insertBefore(p, notificationsDiv.firstChild);
-                 // Limit number of messages shown (optional)
+                // Limit number of messages shown (optional)
                 while (notificationsDiv.children.length > 10) {
                     notificationsDiv.removeChild(notificationsDiv.lastChild);
                 }
-
             }
         } catch (error) {
             console.error("Error parsing WebSocket message:", error);
@@ -127,7 +145,6 @@ function connectWebSocket(token) {
         console.log("WebSocket connection closed:", event);
         webSocket = null; // Reset WebSocket variable
         // Optionally try to reconnect or inform user
-        // Do not clear notifications on close, user might want to see history
         if (!event.wasClean) {
             const p = document.createElement('p');
             p.textContent = `WebSocket disconnected unexpectedly (Code: ${event.code}). Please refresh or log out/in.`;
@@ -164,20 +181,22 @@ async function handleLogin(email, password) {
 }
 
 async function handleRegister(email, password) {
-     setStatus(registerStatus, "Registering...");
-     try {
+    setStatus(registerStatus, "Registering...");
+    try {
         const data = await apiRequest('/register', 'POST', { email, password });
         setStatus(registerStatus, `Registration successful for ${data.email}! Please log in.`, true);
         registerForm.reset(); // Clear form
-        showSection('login-section'); // Switch to login
-     } catch (error) {
+        // Switch to login tab
+        loginTab.click();
+    } catch (error) {
         setStatus(registerStatus, `Registration failed: ${error.message}`);
-     }
+    }
 }
 
 async function showWelcomePage() {
     if (!authToken) {
         showSection('login-section');
+        loginTab.click();
         return;
     }
     try {
@@ -199,8 +218,14 @@ function handleLogout() {
     disconnectWebSocket();
     setStatus(loginStatus, ""); // Clear any previous login errors
     showSection('login-section');
+    loginTab.click();
 }
 
+// --- Form Validation ---
+function validateEmail(email) {
+    const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    return re.test(String(email).toLowerCase());
+}
 
 // --- Event Listeners ---
 registerForm.addEventListener('submit', (e) => {
@@ -208,26 +233,74 @@ registerForm.addEventListener('submit', (e) => {
     const email = document.getElementById('reg-email').value;
     const password = document.getElementById('reg-password').value;
     const confirmPassword = document.getElementById('reg-confirm-password').value;
-    if (password !== confirmPassword) {
-        setStatus(registerStatus, "Passwords do not match.");
-        return;
+    
+    const emailError = document.getElementById('register-email-error');
+    const passwordError = document.getElementById('register-password-error');
+    const confirmError = document.getElementById('register-confirm-error');
+    
+    let isValid = true;
+    
+    // Email validation
+    if (!validateEmail(email)) {
+        emailError.style.display = 'block';
+        isValid = false;
+    } else {
+        emailError.style.display = 'none';
     }
+    
+    // Password validation
     if (password.length < 8) {
-         setStatus(registerStatus, "Password must be at least 8 characters.");
-         return;
+        passwordError.style.display = 'block';
+        isValid = false;
+    } else {
+        passwordError.style.display = 'none';
     }
-    handleRegister(email, password);
+    
+    // Confirm password
+    if (password !== confirmPassword) {
+        confirmError.style.display = 'block';
+        isValid = false;
+    } else {
+        confirmError.style.display = 'none';
+    }
+    
+    if (isValid) {
+        handleRegister(email, password);
+    }
 });
 
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-    handleLogin(email, password);
+    
+    const emailError = document.getElementById('login-email-error');
+    const passwordError = document.getElementById('login-password-error');
+    
+    let isValid = true;
+    
+    // Email validation
+    if (!validateEmail(email)) {
+        emailError.style.display = 'block';
+        isValid = false;
+    } else {
+        emailError.style.display = 'none';
+    }
+    
+    // Simple password validation
+    if (password.length < 1) {
+        passwordError.style.display = 'block';
+        isValid = false;
+    } else {
+        passwordError.style.display = 'none';
+    }
+    
+    if (isValid) {
+        handleLogin(email, password);
+    }
 });
 
 logoutButton.addEventListener('click', handleLogout);
-
 
 // --- Initial Page Load Logic ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -236,6 +309,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showWelcomePage(); // Try to fetch user info and show welcome
     } else {
         console.log("No token found, showing login page.");
-        showSection('login-section'); // Show login if no token
+        loginTab.click(); // Activate login tab
     }
 });
