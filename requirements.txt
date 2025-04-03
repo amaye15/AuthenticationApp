@@ -2,6 +2,7 @@ fastapi==0.111.0
 uvicorn[standard]==0.29.0
 gradio==4.29.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.1.3 # Add this line (or latest compatible version)
 python-dotenv==1.0.1
 databases[sqlite]==0.9.0 # Async DB access
 sqlalchemy==2.0.29       # Core needed by `databases` or for potential future use

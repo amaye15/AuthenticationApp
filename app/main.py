@@ -114,7 +114,6 @@ async def make_api_request(method: str, endpoint: str, **kwargs):
 
 async def listen_to_websockets(token: str, notification_state: list):
     """Connects to WS and updates state list when a message arrives."""
-    # <<< Add Logging >>>
     ws_listener_id = f"WSListener-{os.getpid()}-{asyncio.current_task().get_name()}"
     logger.info(f"[{ws_listener_id}] Starting WebSocket listener task.")
 
@@ -127,12 +126,23 @@ async def listen_to_websockets(token: str, notification_state: list):
     logger.info(f"[{ws_listener_id}] Attempting to connect to WebSocket: {ws_url}")
 
     try:
-        async with asyncio.wait_for(websockets.connect(ws_url), timeout=15.0) as websocket: # Increased timeout slightly
+        # --- CORRECTED CONTEXT MANAGER USAGE ---
+        # Use websockets.connect directly, passing timeout parameters
+        # open_timeout controls connection establishment timeout
+        async with websockets.connect(ws_url, open_timeout=15.0) as websocket:
+        # --- END CORRECTION ---
             logger.info(f"[{ws_listener_id}] WebSocket connected successfully to {ws_url}")
+
+            # --- Add a check after connection to see active connections ---
+            # This helps confirm the backend sees the connection before receiving
+            await asyncio.sleep(0.5) # Small delay to allow backend registration
+            logger.info(f"[{ws_listener_id}] Connections according to manager after connect: {manager.active_connections}")
+            # --- End check ---
+
             while True:
                 try:
-                    message_str = await websocket.recv()
-                    # <<< Add Logging >>>
+                    # Add recv timeout (optional, but good practice)
+                    message_str = await asyncio.wait_for(websocket.recv(), timeout=300.0) # e.g., 5 min timeout
                     logger.info(f"[{ws_listener_id}] Received raw message: {message_str}")
                     try:
                          message_data = json.loads(message_str)
@@ -140,12 +150,9 @@ async def listen_to_websockets(token: str, notification_state: list):
 
                          if message_data.get("type") == "new_user":
                               notification = schemas.Notification(**message_data)
-                              # <<< Add Logging >>>
                               logger.info(f"[{ws_listener_id}] Processing 'new_user' notification: {notification.message}")
-                              # Modify the list in place
                               notification_state.insert(0, notification.message)
-                              logger.info(f"[{ws_listener_id}] State list updated. New length: {len(notification_state)}. Content: {notification_state[:5]}") # Log first few items
-                              # Limit state history
+                              logger.info(f"[{ws_listener_id}] State list updated. New length: {len(notification_state)}. Content: {notification_state[:5]}")
                               if len(notification_state) > 10:
                                   notification_state.pop()
                          else:
@@ -156,7 +163,11 @@ async def listen_to_websockets(token: str, notification_state: list):
                     except Exception as parse_err:
                          logger.error(f"[{ws_listener_id}] Error processing received message: {parse_err}")
 
-
+                except asyncio.TimeoutError:
+                     # No message received within timeout, keep connection alive (ping might be needed for long silences)
+                     logger.debug(f"[{ws_listener_id}] WebSocket recv timed out, continuing loop.")
+                     # Consider sending a ping if needed: await websocket.ping()
+                     continue
                 except websockets.ConnectionClosedOK:
                     logger.info(f"[{ws_listener_id}] WebSocket connection closed normally.")
                     break
@@ -165,13 +176,13 @@ async def listen_to_websockets(token: str, notification_state: list):
                     break
                 except Exception as e:
                      logger.error(f"[{ws_listener_id}] Error in WebSocket listener receive loop: {e}")
-                     await asyncio.sleep(1) # Avoid tight loop on errors
+                     await asyncio.sleep(1)
 
-    except asyncio.TimeoutError:
-        logger.error(f"[{ws_listener_id}] WebSocket connection timed out: {ws_url}")
+    except asyncio.TimeoutError: # Catch timeout during initial connect
+        logger.error(f"[{ws_listener_id}] WebSocket initial connection timed out: {ws_url}")
     except websockets.exceptions.InvalidURI:
          logger.error(f"[{ws_listener_id}] Invalid WebSocket URI: {ws_url}")
-    except websockets.exceptions.WebSocketException as e:
+    except websockets.exceptions.WebSocketException as e: # Catch connection errors
         logger.error(f"[{ws_listener_id}] WebSocket connection failed: {e}")
     except Exception as e:
         logger.error(f"[{ws_listener_id}] Unexpected error in WebSocket listener task: {e}")
