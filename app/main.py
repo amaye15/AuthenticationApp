@@ -1,6 +1,7 @@
+# app/main.py
 import gradio as gr
-import httpx # Use httpx for async requests from Gradio backend to API
-import websockets # Use websockets library to connect from Gradio backend
+import httpx
+import websockets
 import asyncio
 import json
 import os
@@ -8,27 +9,72 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends # Import FastAPI itself
-from .api import router as api_router # Import the API router
-from .database import connect_db, disconnect_db
-from . import schemas, auth, dependencies # Import necessary modules
+# --- Import necessary items from database.py ---
+from .database import connect_db, disconnect_db, database, metadata, users
+from .api import router as api_router
+from . import schemas, auth, dependencies
+
+# --- Import SQLAlchemy helpers for DDL generation ---
+from sqlalchemy.schema import CreateTable
+from sqlalchemy.dialects import sqlite # Assuming SQLite, adjust if needed
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Base URL for the API (since Gradio runs its own server, even if mounted)
-# Assuming Gradio runs on 7860, FastAPI routes mounted under it
+# Base URL for the API
 API_BASE_URL = "http://127.0.0.1:7860/api" # Adjust if needed
 
 # --- FastAPI Lifespan Event ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    logger.info("Application startup: Connecting DB...")
     await connect_db()
-    # Start background task for websocket listening if needed (or handle within component interaction)
+    logger.info("Application startup: DB Connected. Checking/Creating tables...")
+    if database.is_connected: # Proceed only if connection succeeded
+        try:
+            # 1. Check if table exists using the async connection
+            # For SQLite, check the sqlite_master table
+            check_query = "SELECT name FROM sqlite_master WHERE type='table' AND name=:table_name;"
+            table_exists = await database.fetch_one(query=check_query, values={"table_name": users.name})
+
+            if not table_exists:
+                logger.info(f"Table '{users.name}' not found, attempting creation using async connection...")
+
+                # 2. Generate the CREATE TABLE statement using SQLAlchemy DDL compiler
+                # We need a dialect object for the compiler
+                # Infer dialect from the database URL if possible, default to SQLite for this example
+                dialect = sqlite.dialect() # Or determine dynamically based on database.url
+                create_table_stmt = str(CreateTable(users).compile(dialect=dialect))
+                logger.debug(f"Generated CREATE TABLE statement: {create_table_stmt}")
+
+                # 3. Execute the CREATE TABLE statement via the async database connection
+                await database.execute(query=create_table_stmt)
+                logger.info(f"Table '{users.name}' created successfully via async connection.")
+
+                # 4. Optional: Verify again immediately
+                table_exists_after = await database.fetch_one(query=check_query, values={"table_name": users.name})
+                if table_exists_after:
+                     logger.info(f"Table '{users.name}' verified after creation.")
+                else:
+                     logger.error(f"Table '{users.name}' verification FAILED after creation attempt!")
+
+            else:
+                logger.info(f"Table '{users.name}' already exists (checked via async connection).")
+
+        except Exception as db_setup_err:
+            logger.exception(f"CRITICAL error during async DB table setup: {db_setup_err}")
+            # Consider whether to halt startup here depending on severity
+    else:
+        logger.error("CRITICAL: Database connection failed, skipping table setup.")
+
+    logger.info("Application startup: DB setup phase complete.")
     yield
     # Shutdown
+    logger.info("Application shutdown: Disconnecting DB...")
     await disconnect_db()
+    logger.info("Application shutdown: DB Disconnected.")
 
 # Create the main FastAPI app instance that Gradio will use
 # We attach our API routes to this instance.
